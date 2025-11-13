@@ -102,6 +102,9 @@ export const PLATFORM_CONFIGS: Record<Platform, Partial<PlatformConfig>> = {
     displayName: "Google Shopping",
     icon: "🔍",
     color: "#4285F4",
+    clientId: process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    redirectUri: process.env.NEXTAUTH_URL + "/api/oauth/google/callback",
   },
   MICROSOFT_SHOPPING: {
     name: "microsoft_shopping",
