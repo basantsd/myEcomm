@@ -28,6 +28,9 @@ model User {
   products          Product[]
   orders            Order[]
   messages          Message[]
+  agentConfigs      AgentConfig[]
+  agentActions      AgentAction[]
+  notifications     Notification[]
 }
 
 enum UserRole {
@@ -194,25 +197,28 @@ model Order {
   customerEmail     String?
   shippingAddress   Json
   billingAddress    Json?
-  subtotal          Decimal     @db.Decimal(10, 2)
-  tax               Decimal     @db.Decimal(10, 2)
-  shipping          Decimal     @db.Decimal(10, 2)
+  subtotal          Decimal?    @db.Decimal(10, 2)
+  tax               Decimal?    @db.Decimal(10, 2)
+  shipping          Decimal?    @db.Decimal(10, 2)
   total             Decimal     @db.Decimal(10, 2)
-  status            OrderStatus
-  paymentStatus     String
+  currency          String      @default("USD")
+  status            String      @default("PENDING")
+  paymentStatus     String?
   fulfillmentStatus String?
   trackingNumber    String?
   trackingUrl       String?
+  carrier           String?
   shippingCarrier   String?
   notes             String?
   orderDate         DateTime
+  shippedAt         DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   items      OrderItem[]
 
-  @@unique([platform, platformOrderId])
+  @@unique([userId, platformOrderId])
   @@index([userId])
   @@index([platform])
   @@index([status])
@@ -228,15 +234,18 @@ enum OrderStatus {
 }
 
 model OrderItem {
-  id         String  @id @default(cuid())
-  orderId    String
-  productId  String?
-  sku        String
-  title      String
-  quantity   Int
-  price      Decimal @db.Decimal(10, 2)
-  total      Decimal @db.Decimal(10, 2)
-  metadata   Json?
+  id               String   @id @default(cuid())
+  orderId          String
+  productId        String?
+  sku              String
+  title            String
+  quantity         Int
+  price            Decimal  @db.Decimal(10, 2)
+  total            Decimal? @db.Decimal(10, 2)
+  platformItemId   String?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -249,11 +258,9 @@ model OrderItem {
 model InventoryLog {
   id           String          @id @default(cuid())
   productId    String
-  changeType   InventoryChange
-  quantityChange Int
-  quantityBefore Int
-  quantityAfter  Int
-  reason       String?
+  oldQuantity  Int
+  newQuantity  Int
+  changeReason String?
   platform     Platform?
   orderId      String?
   userId       String?
@@ -275,26 +282,18 @@ enum InventoryChange {
 
 // Communication Hub
 model Message {
-  id          String        @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
-  platform    MessagePlatform
-  externalId  String?
-  direction   MessageDirection
-  fromName    String
-  fromEmail   String?
-  fromPhone   String?
-  toName      String?
-  toEmail     String?
-  toPhone     String?
-  subject     String?
-  body        String
-  status      MessageStatus @default(UNREAD)
-  attachments String[]
-  metadata    Json?
+  orderId     String?
+  platform    Platform
+  messageType String?
+  content     String
+  response    String?
+  status      String           @default("pending")
   sentAt      DateTime?
-  receivedAt  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  respondedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -328,11 +327,11 @@ model SyncJob {
   id          String     @id @default(cuid())
   userId      String
   platform    Platform
-  jobType     String
-  status      JobStatus
+  type        String
+  status      String
   progress    Int        @default(0)
   total       Int?
-  result      Json?
+  details     Json?
   error       String?
   startedAt   DateTime   @default(now())
   completedAt DateTime?
@@ -354,15 +353,200 @@ enum JobStatus {
 // Webhooks
 model Webhook {
   id            String   @id @default(cuid())
+  userId        String
   platform      Platform
-  eventType     String
+  event         String
   payload       Json
-  processed     Boolean  @default(false)
+  status        String   @default("pending")
   processedAt   DateTime?
   error         String?
-  receivedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
 
+  @@index([userId])
   @@index([platform])
-  @@index([processed])
-  @@index([receivedAt])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// AI Agents
+model AgentConfig {
+  id              String         @id @default(cuid())
+  userId          String
+  agentRole       AgentRole
+  enabled         Boolean        @default(true)
+  automationLevel AutomationLevel @default(SUPERVISED)
+  settings        Json?          // Agent-specific configuration
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, agentRole])
+  @@index([userId])
+  @@index([agentRole])
+}
+
+enum AgentRole {
+  PRODUCT_MANAGER
+  CUSTOMER_SERVICE
+  PRICE_OPTIMIZER
+  INVENTORY_MANAGER
+  ORDER_FULFILLMENT
+  MARKETING_SPECIALIST
+  ANALYTICS_LEAD
+  LISTING_OPTIMIZER
+  RETURNS_MANAGER
+  GROWTH_HACKER
+}
+
+enum AutomationLevel {
+  FULL           // Fully autonomous
+  SUPERVISED     // Requires approval for major actions
+  MANUAL         // User must trigger all actions
+}
+
+model AgentAction {
+  id          String       @id @default(cuid())
+  userId      String
+  agentRole   AgentRole
+  actionType  String
+  description String
+  status      ActionStatus @default(PENDING)
+  metadata    Json?
+  result      Json?
+  error       String?
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([agentRole])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  priority  Priority           @default(MEDIUM)
+  read      Boolean            @default(false)
+  metadata  Json?
+  createdAt DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([priority])
+  @@index([read])
+}
+
+enum NotificationType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  DELAYED_SHIPMENT
+  ORDER_ISSUE
+  PRICE_CHANGE
+  PROMOTION_STARTED
+  PROMOTION_ENDED
+  SYSTEM_ALERT
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Promotion {
+  id                  String          @id @default(cuid())
+  userId              String
+  productId           String
+  title               String
+  discountPercentage  Int
+  startDate           DateTime
+  endDate             DateTime
+  status              PromotionStatus @default(DRAFT)
+  createdAt           DateTime        @default(now())
+
+  @@index([userId])
+  @@index([productId])
+  @@index([status])
+}
+
+enum PromotionStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+model MarketingContent {
+  id          String        @id @default(cuid())
+  userId      String
+  productId   String?
+  contentType ContentType
+  title       String
+  content     String
+  status      ContentStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  publishedAt DateTime?
+
+  @@index([userId])
+  @@index([productId])
+  @@index([contentType])
+}
+
+enum ContentType {
+  PRODUCT_DESCRIPTION
+  BLOG_POST
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  AD_COPY
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  productId  String
+  oldPrice   Decimal  @db.Decimal(10, 2)
+  newPrice   Decimal  @db.Decimal(10, 2)
+  reason     String?
+  changedBy  String
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model ReorderRecommendation {
+  id                  String   @id @default(cuid())
+  userId              String
+  productId           String
+  recommendedQuantity Int
+  priority            String
+  estimatedCost       Decimal  @db.Decimal(10, 2)
+  status              String   @default("pending")
+  createdAt           DateTime @default(now())
+
+  @@index([userId])
+  @@index([productId])
+  @@index([status])
 }
