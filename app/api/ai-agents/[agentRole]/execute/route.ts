@@ -7,6 +7,10 @@ import { TomPriceOptimizer } from "@/lib/ai/agents/tom-price-optimizer"
 import { DavidInventoryManager } from "@/lib/ai/agents/david-inventory-manager"
 import { MikeOrderFulfillment } from "@/lib/ai/agents/mike-order-fulfillment"
 import { EmmaMarketingSpecialist } from "@/lib/ai/agents/emma-marketing-specialist"
+import { JamesAnalyticsLead } from "@/lib/ai/agents/james-analytics-lead"
+import { RachelListingOptimizer } from "@/lib/ai/agents/rachel-listing-optimizer"
+import { MariaReturnsManager } from "@/lib/ai/agents/maria-returns-manager"
+import { KevinGrowthHacker } from "@/lib/ai/agents/kevin-growth-hacker"
 
 export async function POST(
   req: NextRequest,
@@ -37,6 +41,18 @@ export async function POST(
         break
       case "MARKETING_SPECIALIST":
         agent = new EmmaMarketingSpecialist(user.id)
+        break
+      case "ANALYTICS_LEAD":
+        agent = new JamesAnalyticsLead(user.id)
+        break
+      case "LISTING_OPTIMIZER":
+        agent = new RachelListingOptimizer(user.id)
+        break
+      case "RETURNS_MANAGER":
+        agent = new MariaReturnsManager(user.id)
+        break
+      case "GROWTH_HACKER":
+        agent = new KevinGrowthHacker(user.id)
         break
       default:
         return NextResponse.json(
