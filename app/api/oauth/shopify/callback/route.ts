@@ -31,6 +31,14 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // Validate state for CSRF protection
+    const savedState = req.cookies.get("oauth_state")?.value
+    if (!state || !savedState || state !== savedState) {
+      return NextResponse.redirect(
+        new URL("/dashboard/platforms?error=invalid_state", req.url)
+      )
+    }
+
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.redirect(new URL("/login", req.url))
@@ -63,9 +71,11 @@ export async function GET(req: NextRequest) {
       }
     )
 
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       new URL("/dashboard/platforms?success=shopify_connected", req.url)
     )
+    response.cookies.delete("oauth_state")
+    return response
   } catch (error) {
     console.error("Shopify OAuth callback error:", error)
     return NextResponse.redirect(

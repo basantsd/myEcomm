@@ -135,7 +135,10 @@ export default function PlatformsPage() {
                   <p className="text-sm text-red-700">
                     {error === "no_code" && "Authorization code was not received"}
                     {error === "connection_failed" && "Failed to establish connection"}
-                    {error !== "no_code" && error !== "connection_failed" && `Error: ${error}`}
+                    {error === "invalid_state" && "Security validation failed. Please try again"}
+                    {error === "invalid_hmac" && "Invalid security signature. Please try again"}
+                    {error === "missing_params" && "Required parameters are missing"}
+                    {!["no_code", "connection_failed", "invalid_state", "invalid_hmac", "missing_params"].includes(error) && `Error: ${error}`}
                   </p>
                 </div>
               </div>

@@ -25,6 +25,14 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // Validate state for CSRF protection
+    const savedState = req.cookies.get("oauth_state")?.value
+    if (!state || !savedState || state !== savedState) {
+      return NextResponse.redirect(
+        new URL("/dashboard/platforms?error=invalid_state", req.url)
+      )
+    }
+
     // Get current user
     const user = await getCurrentUser()
     if (!user) {
@@ -63,10 +71,12 @@ export async function GET(req: NextRequest) {
       }
     )
 
-    // Redirect to success page
-    return NextResponse.redirect(
+    // Redirect to success page and clear the state cookie
+    const response = NextResponse.redirect(
       new URL("/dashboard/platforms?success=ebay_connected", req.url)
     )
+    response.cookies.delete("oauth_state")
+    return response
   } catch (error) {
     console.error("eBay OAuth callback error:", error)
     return NextResponse.redirect(

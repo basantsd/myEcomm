@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Get authorization URL based on platform
     let authUrl: string
-    const response = NextResponse.json({ authUrl: "", state })
+    let codeVerifier: string | undefined
 
     switch (platform.toUpperCase()) {
       case Platform.EBAY:
@@ -37,15 +37,8 @@ export async function POST(req: NextRequest) {
         break
 
       case Platform.ETSY:
-        const codeVerifier = generateCodeVerifier()
+        codeVerifier = generateCodeVerifier()
         authUrl = getEtsyAuthUrl(state, codeVerifier)
-        // Store code verifier in cookie for callback
-        response.cookies.set("etsy_code_verifier", codeVerifier, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 600, // 10 minutes
-        })
         break
 
       case Platform.SHOPIFY:
@@ -69,10 +62,31 @@ export async function POST(req: NextRequest) {
         )
     }
 
-    return NextResponse.json({
+    // Create response with authUrl
+    const response = NextResponse.json({
       authUrl,
       state,
     })
+
+    // Store code verifier in cookie for Etsy (needed for PKCE)
+    if (codeVerifier) {
+      response.cookies.set("etsy_code_verifier", codeVerifier, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 600, // 10 minutes
+      })
+    }
+
+    // Store state in cookie for CSRF protection
+    response.cookies.set("oauth_state", state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600, // 10 minutes
+    })
+
+    return response
   } catch (error) {
     console.error("Platform connect error:", error)
     return NextResponse.json(
